@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  
+  http://www.apache.org/licenses/LICENSE-2.0
+  
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License. See accompanying LICENSE file.
+-->
+
+<!-- Put site-specific property overrides in this file. -->
+
+<configuration>
+  <property>
+    <name>dfs.nameservices</name>
+    <value>mzcluster</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.mzcluster</name>
+    <value>nn1,nn2</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.mzcluster.nn1</name>
+    <value>hd-nn-1.meizu.gz:9000</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.mzcluster.nn2</name>
+    <value>hd-snn-1.meizu.gz:9000</value>
+  </property>
+  
+  <property>
+    <name>dfs.namenode.http-address.mzcluster.nn1</name>
+    <value>hd-nn-1.meizu.gz:50070</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.http-address.mzcluster.nn2</name>
+    <value>hd-snn-1.meizu.gz:50070</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.servicerpc-address.mzcluster.nn1</name>
+    <value>hd-nn-1.meizu.gz:53310</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.servicerpc-address.mzcluster.nn2</name>
+    <value>hd-snn-1.meizu.gz:53310</value>
+  </property>
+ 
+  <!-- 
+  <property>
+    <name>dfs.namenode.secondary.http-address.mzcluster</name>
+    <value>hd-snn-1.meizu.gz:50090</value>
+  </property>
+  -->
+
+  <property>
+    <name>dfs.namenode.name.dir.mzcluster</name>
+    <value>/hadoop/data01/dfs/name,/hadoop/data02/dfs/name</value>
+    <final>true</final>
+  </property>
+
+  <property>
+    <name>dfs.namenode.shared.edits.dir</name>
+    <value>qjournal://hd-node-4.meizu.gz:8485;hd-nn-1.meizu.gz:8485;hd-snn-1.meizu.gz:8485/mzcluster</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.automatic-failover.enabled</name>
+    <value>true</value>
+  </property>
+
+  <property>
+     <name>dfs.client.failover.proxy.provider.mzcluster</name>
+     <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+     <name>dfs.journalnode.edits.dir</name>
+     <value>/hadoop/data01/tmp/journal</value>
+  </property>
+
+  <property>
+     <name>dfs.ha.fencing.methods</name>
+     <value>sshfence(hadoop:16120)</value>
+  </property>
+
+  <property>
+     <name>dfs.ha.fencing.ssh.private-key-files</name>
+     <value>/home/hadoop/.ssh/id_rsa</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>
+      /hadoop/data01/dfs/data,
+      /hadoop/data02/dfs/data,
+      /hadoop/data03/dfs/data,
+      /hadoop/data04/dfs/data,
+      /hadoop/data05/dfs/data,
+      /hadoop/data06/dfs/data,
+      /hadoop/data07/dfs/data,
+      /hadoop/data08/dfs/data,
+      /hadoop/data09/dfs/data,
+      /hadoop/data10/dfs/data,
+      /hadoop/data11/dfs/data
+    </value>
+    <final>true</final>
+  </property>
+        
+  <property>
+    <name>dfs.namenode.checkpoint.dir.mzcluster</name>
+    <value>/hadoop/data01/dfs/namesecondary,/hadoop/data02/dfs/namesecondary</value>
+    <final>true</final>
+  </property>
+
+  <property>
+    <!-- space amount in bytes reserved on the storage volumes for non-HDFS use -->
+    <name>dfs.datanode.du.reserved</name>
+    <value>300000000000</value>
+    <final>true</final>
+  </property>
+
+  <property>    
+    <name>dfs.hosts.exclude</name>    
+    <value>etc/hadoop/hosts.exclude</value>   
+  </property>
+
+  <property>
+    <name>dfs.hosts</name>
+    <value>etc/hadoop/hosts.allow</value>
+  </property>
+  
+  <property>
+    <name>dfs.replication</name>
+    <value>3</value>
+    <final>true</final>
+  </property>
+
+  <property>
+    <!-- Enable WebHDFS inteface to HDFS -->
+    <name>dfs.webhdfs.enabled</name>
+    <value>true</value>
+  </property>
+
+  <property>
+     <name>dfs.datanode.balance.bandwidthPerSec</name>
+     <!--<value>209715200</value>-->
+     <value>1048576000</value>
+     <description>
+         Specifies the maximum amount of bandwidth that each datanode can utilize for the balancing purpose in term of the number of bytes per second.
+     </description>
+  </property>
+
+  <property>
+     <name>dfs.datanode.max.transfer.threads</name>
+     <value>12288</value>
+     <description>
+         Specifies the maximum number of threads to use for transferring data in and out of the DN.
+     </description>
+  </property>
+
+  <property>
+     <name>dfs.client.socket-timeout</name>
+     <value>180000</value>
+  </property>
+
+  <property>
+     <name>dfs.datanode.failed.volumes.tolerated</name>
+     <value>1</value>
+  </property>
+
+  <property>
+     <name>dfs.namenode.handler.count</name>
+     <!--<value>51</value>-->
+     <value>127</value>
+  </property>
+
+  <property>
+     <name>dfs.datanode.handler.count</name>
+     <!--<value>51</value>-->
+     <value>127</value>
+  </property>
+
+  <property>
+     <name>dfs.datanode.fsdataset.volume.choosing.policy</name>
+     <value>org.apache.hadoop.hdfs.server.datanode.fsdataset.AvailableSpaceVolumeChoosingPolicy</value>
+  </property>
+
+  <property>
+      <name>dfs.datanode.available-space-volume-choosing-policy.balanced-space-threshold</name>
+      <value>21474836480</value>
+  </property>
+
+  <property>
+     <name>dfs.datanode.available-space-volume-choosing-policy.balanced-space-preference-fraction</name>
+     <value>0.8f</value>
+  </property>
+ 
+  <property>
+     <name>dfs.namenode.checkpoint.period</name>
+     <value>3600</value>
+     <description>The number of seconds between two periodic checkpoints.</description>
+  </property>
+ 
+  <property>
+     <name>dfs.namenode.checkpoint.check.period</name>
+     <value>60</value>
+     <description>The SecondaryNameNode and CheckpointNode will poll the NameNode every 'dfs.namenode.checkpoint.check.period' seconds to query the number of uncheckpointed transactions.
+     </description>
+  </property>
+
+  <property>
+     <name>dfs.image.transfer.timeout</name>
+     <!--<value>60000</value>-->
+     <value>3600000</value>
+  </property>
+
+  <property>
+     <name>dfs.qjournal.write-txns.timeout.ms</name>
+     <value>120000</value>
+  </property>
+
+  <!--
+  <property>  
+     <name>dfs.image.transfer.bandwidthPerSec</name>  
+     <value>4194304</value>  
+  </property>-->
+
+</configuration>

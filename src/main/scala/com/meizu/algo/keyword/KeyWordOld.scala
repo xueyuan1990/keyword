@@ -1,120 +1,127 @@
-package xueyuan
+package com.meizu.algo.keyword
 
 import java.text.SimpleDateFormat
 import java.util
-import java.util.Date
-
 import com.alibaba.fastjson.JSON
-import com.github.fommil.netlib.F2jBLAS
 import com.hankcs.hanlp.HanLP
 import com.hankcs.hanlp.seg.common.Term
-import lingc.ExpTable
 import utils.{Blas, Log, SparkApp, StrUtil}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
-
 import scala.collection.JavaConversions._
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by xueyuan on 2017/7/4.
   */
-object kw_online {
+object KeyWordOld {
   val sdf_time: SimpleDateFormat = new SimpleDateFormat("HH:mm:ss")
   val htmlPatter = "<[^>]+?>"
   val WORD_SEP = ","
   val LINE_SEP = WORD_SEP + "###" + WORD_SEP
   var count = 100
 
-
-  def process(title: String, content: String, wordVec: Map[String, Array[Float]], wordIdf: Map[String, Float], w1: Double = 1.0, w2: Double = 1.0, w3: Double = 1.0): Array[String] = {
-
-    val wordIdfBroad = SparkApp.sc.broadcast(wordIdf)
-    val trainWords = wordVec.map(_._1).toSet & wordIdf.keySet
+  private def seg(title: String, content: String): (Array[String], Array[String]) = {
     val se = segmentArticle(title.toLowerCase(), content.toLowerCase())
-    println(se._1)
-    println(se._2)
-    val title_se = getWords(se._1).filter(trainWords.isEmpty || trainWords.contains(_))
+    val title_se = getWords(se._1)
     val content_se =
       if (StrUtil.isEmpty(se._2)) {
         Array.empty[String]
       }
       else {
-        (getWords(se._2).filter(trainWords.isEmpty || trainWords.contains(_)))
+        (getWords(se._2))
       }
-    val expTableBroad = SparkApp.sc.broadcast(new ExpTable)
-    val allWords_dup = title_se ++ content_se
-    val allWords = allWords_dup.distinct
-    var w_tf = allWords.map(r => (r, 0)).toMap
-    for (w <- allWords_dup) {
-      val tf = w_tf(w)
-      val c = tf + 1
-      w_tf += ((w, c))
-    }
-    val vec = allWords.map { r =>
-      val vecOption = wordVec.get(r)
-      val vec_in = vecOption match {
-        case Some(s) => s
-        case None => null
+    (title_se, content_se)
+
+  }
+
+  private def seg_dis(title: String, content: String): Array[String] = {
+    val (title_se, content_se) = seg(title, content)
+    (title_se ++ content_se).distinct
+  }
+
+  def get_kw(title_in: String, content: String, wordVec: Map[String, Array[Double]], wordIdf: Map[String, Double], weight: Array[Double]): Array[String] = {
+    var title = title_in
+    if (content == null || wordVec == null || wordIdf == null || weight == null || weight.length < 3) {
+      Array.empty[String]
+    } else {
+      if (title_in == null) {
+        title = ""
       }
-      (r, vec_in)
-    }.filter(_._2 != null)
-
-    val wordsim = vec.map { v =>
-      val sim = vec.filter(_._1 != v._1).map(r => Blas.cos(r._2, v._2)).sum
-      (v._1, sim)
-    }
-
-
-    val word_sim_tfidf_tit = wordsim.map(r => {
-      val w_idf = wordIdfBroad.value
-      val w = r._1
-      val sim = r._2
-      val idf = w_idf(w)
-      var tit = 0.0
-      if (title.contains(w)) {
-        tit = 1
+      val trainWords = wordVec.map(_._1).toSet & wordIdf.keySet
+      val (title_se, content_se) = seg(title, content)
+      val title_se2 = title_se.filter(trainWords.isEmpty || trainWords.contains(_))
+      val content_se2 = content_se.filter(trainWords.isEmpty || trainWords.contains(_))
+      println("title_se="+title_se2.mkString(","))
+      println("content_se=" + content_se2.mkString(","))
+      val allWords_dup = title_se2 ++ content_se2
+      val allWords = allWords_dup.distinct
+      var w_tf = allWords.map(r => (r, 0)).toMap
+      for (w <- allWords_dup) {
+        val tf = w_tf(w)
+        val c = tf + 1
+        w_tf += ((w, c))
       }
-      (w, sim, idf * w_tf(w), tit)
-    })
+      val vec = allWords.map { r =>
+        val vecOption = wordVec.get(r)
+        val vec_in = vecOption match {
+          case Some(s) => s
+          case None => null
+        }
+        (r, vec_in)
+      }.filter(_._2 != null)
 
-    //归一化
-    var sim_max = 0.0
-    var sim_min = 0.0
-    var tfidf_max = 0.0
-    var tfidf_min = 0.0
-    for ((w, sim, tfidf, tit) <- word_sim_tfidf_tit) {
-      if (sim_max < sim) {
-        sim_max = sim
-      } else {
-        sim_min = sim
+      val wordsim = vec.map { v =>
+        val sim = vec.filter(_._1 != v._1).map(r => Blas.cos(r._2, v._2)).sum
+        (v._1, sim)
       }
-      if (tfidf_max < tfidf) {
-        tfidf_max = tfidf
-      } else {
-        tfidf_min = tfidf
-      }
-    }
-    var sim_div = sim_max - sim_min
-    var tfidf_div = tfidf_max - tfidf_min
-    if (sim_div == 0) {
-      sim_div = 1
-    }
-    if (tfidf_div == 0) {
-      tfidf_div = 1
-    }
-    var word_score = new ArrayBuffer[(String, Double)]()
-    for ((w, sim, tfidf, tit) <- word_sim_tfidf_tit) {
-      word_score += ((w, w1 * (sim - sim_min) / sim_div + w2 * (tfidf - tfidf_min) / tfidf_div + w3 * tit))
-    }
 
-    val kw = new ArrayBuffer[String]()
-    for ((w, s) <- word_score.sortWith(_._2 > _._2).take(3)) {
-      kw += w
+
+      val word_sim_tfidf_tit = wordsim.map(r => {
+        val w = r._1
+        val sim = r._2
+        val idf = wordIdf(w)
+        var tit = 0.0
+        if (title_se2.contains(w)) {
+          tit = 1
+        }
+        (w, sim, idf * w_tf(w), tit)
+      })
+
+      //归一化
+      var sim_max = 0.0
+      var sim_min = 0.0
+      var tfidf_max = 0.0
+      var tfidf_min = 0.0
+      for ((w, sim, tfidf, tit) <- word_sim_tfidf_tit) {
+        if (sim_max < sim) {
+          sim_max = sim
+        } else {
+          sim_min = sim
+        }
+        if (tfidf_max < tfidf) {
+          tfidf_max = tfidf
+        } else {
+          tfidf_min = tfidf
+        }
+      }
+      var sim_div = sim_max - sim_min
+      var tfidf_div = tfidf_max - tfidf_min
+      if (sim_div == 0) {
+        sim_div = 1
+      }
+      if (tfidf_div == 0) {
+        tfidf_div = 1
+      }
+      var word_score = new ArrayBuffer[(String, Double)]()
+      for ((w, sim, tfidf, tit) <- word_sim_tfidf_tit) {
+        word_score += ((w, weight(0) * (sim - sim_min) / sim_div + weight(1) * (tfidf - tfidf_min) / tfidf_div + weight(2) * tit))
+      }
+
+      val kw = new ArrayBuffer[String]()
+      for ((w, s) <- word_score.sortWith(_._2 > _._2).take(3)) {
+        kw += w + ":1"
+      }
+      kw.toArray
     }
-    kw.toArray
   }
 
 
@@ -135,33 +142,30 @@ object kw_online {
 
   }
 
-  def queryStopWord() = {
 
-    val srcSql = "select word from algo.lj_article_word_tfidf where idf <=3 or tf > 165943"
+  def queryWordVec(stat_date: String) = {
+    val srcSql = "select word from algo.lc_article_word_tfidf where idf <=3 or tf > 165943 and tf is not null and idf is not null"
     val srcData = SparkApp.hiveContext.sql(srcSql).map(r => r.getString(0))
-    srcData.collect().toSet
-  }
-
-  def queryWordVec(stopWord: Set[String]) = {
+    val stopWord = srcData.collect().toSet
 
     Log.info("load word vec start")
-    val stopWordBroad = SparkApp.sc.broadcast(stopWord)
-    val srcSql = s"select word,vec from algo.lj_article_word_vec2 where stat_date='uc170626' and length(word)>1"
-    val srcData = SparkApp.hiveContext.sql(srcSql)
+    //    val stopWordBroad = SparkApp.sc.broadcast(stopWord)
+    val srcSql_2 = s"select word,vec from algo.lj_article_word_vec2 where stat_date='" + stat_date + "'"
+    val srcData_2 = SparkApp.hiveContext.sql(srcSql_2)
       .map(r => {
-        val vec = r.getString(1).split(",").map(_.toFloat)
-        Blas.norm2(vec)
+        val vec = r.getString(1).split(",").map(_.toDouble)
+        Blas.norm3(vec)
         (r.getString(0), vec)
-      }).filter(r => !stopWordBroad.value.contains(r._1))
-    srcData.collect().toMap
+      }).filter(r => !stopWord.contains(r._1))
+    srcData_2.collect().toMap
   }
 
-  def queryIdf(): Map[String, Float] = {
+  def queryIdf(): Map[String, Double] = {
     val srcSql =
-      "select word,idf from algo.lj_article_word_tfidf"
+      "select word,idf from algo.lc_article_word_tfidf where tf is not null and idf is not null"
     val ret = SparkApp.hiveContext.sql(srcSql)
     val r = ret.map(r => {
-      (r.getString(0), r.getDouble(1).toFloat)
+      (r.getString(0), r.getDouble(1))
     }).map(r => (r._1, r._2)).collectAsMap()
     r.toMap
   }
@@ -245,6 +249,7 @@ object kw_online {
     //    SEG.enableAllNamedEntityRecognize(true)
     SEG.enableNumberQuantifierRecognize(true)
     SEG.enableCustomDictionary(true)
+    SEG.enableNameRecognize(false)
 
     def segment(text: String): util.List[Term] = {
       try {
